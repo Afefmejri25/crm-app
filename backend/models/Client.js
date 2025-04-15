@@ -17,11 +17,11 @@ const clientSchema = new mongoose.Schema(
       default: 'New',
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    createdAt: { type: Date, default: Date.now },
   },
   { timestamps: true }
 );
 
-// Check if the model is already compiled
 const Client = mongoose.models.Client || mongoose.model('Client', clientSchema);
 
 export default Client;

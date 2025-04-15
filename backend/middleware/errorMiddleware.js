@@ -1,6 +1,6 @@
 // Custom error handler middleware
-export const errorHandler = (err, req, res, next) => {
-  console.error("Error:", err.stack || err.message);
+const errorHandler = (err, req, res, next) => {
+  console.error("Error:", err.message || err);
 
   const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   res.status(statusCode).json({
@@ -8,6 +8,8 @@ export const errorHandler = (err, req, res, next) => {
     stack: process.env.NODE_ENV === "production" ? null : err.stack,
   });
 };
+
+export { errorHandler }; // Ensure named export
 
 // Not found middleware
 export const notFound = (req, res, next) => {

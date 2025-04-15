@@ -5,18 +5,13 @@ const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 };
 
-export const loginUser = async (req, res) => {
+export const loginUser = async (req, res, next) => {
   const { email, password } = req.body;
-
-  console.log('Login attempt:', { email });
 
   try {
     const user = await User.findOne({ email });
-    console.log('User found:', user ? 'yes' : 'no');
 
     if (user && (await user.matchPassword(password))) {
-      console.log('Password match successful');
-      // Update last login
       user.lastLogin = new Date();
       await user.save();
 
@@ -24,17 +19,16 @@ export const loginUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
-        role: user.role,
-        permissions: user.permissions,
+        role: user.role, // Ensure role is included in the response
+        permissions: user.permissions || [], // Include permissions if available
         token: generateToken(user._id),
       });
     } else {
-      console.log('Invalid credentials');
-      res.status(401).json({ message: "Invalid email or password" });
+      res.status(401);
+      throw new Error("Invalid email or password.");
     }
   } catch (error) {
-    console.error("Error during login:", error);
-    res.status(500).json({ message: "An error occurred during login." });
+    next(error);
   }
 };
 
@@ -61,27 +55,26 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-// Register a new user
-export const registerUser = async (req, res) => {
+export const registerUser = async (req, res, next) => {
   const { name, email, password } = req.body;
 
   try {
-    // Validate required fields
     if (!name || !email || !password) {
-      return res.status(400).json({ message: "Name, email, and password are required fields." });
+      res.status(400);
+      throw new Error("Name, email, and password are required.");
     }
 
-    // Check if the user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return res.status(400).json({ message: "User already exists with this email." });
+      res.status(400);
+      throw new Error("User already exists with this email.");
     }
 
-    // Create a new user
     const user = new User({
       name,
       email,
-      password, // Ensure password is hashed in the User model
+      password,
+      permissions: [],
     });
 
     const savedUser = await user.save();
@@ -93,8 +86,7 @@ export const registerUser = async (req, res) => {
       permissions: savedUser.permissions,
     });
   } catch (error) {
-    console.error("Error registering user:", error.message || error);
-    res.status(500).json({ message: "Failed to register user. Please try again later." });
+    next(error);
   }
 };
 

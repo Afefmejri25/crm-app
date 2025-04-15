@@ -59,10 +59,14 @@ const appointmentSchema = new mongoose.Schema(
 
 // Validate that endTime is after startTime
 appointmentSchema.pre("save", function (next) {
+  console.log("Appointment pre-save hook: Validating startTime and endTime"); // Debugging log
   if (this.endTime <= this.startTime) {
+    console.error("Appointment pre-save hook: Validation failed - endTime is before startTime"); // Debugging log
     next(new Error("L'heure de fin doit être après l'heure de début"));
+  } else {
+    console.log("Appointment pre-save hook: Validation passed"); // Debugging log
+    next();
   }
-  next();
 });
 
 // Add indexes for better query performance

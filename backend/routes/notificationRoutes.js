@@ -2,26 +2,26 @@ import express from 'express';
 import {
   getNotifications,
   createNotification,
+  markAsRead,
   deleteNotification,
-  markAsRead
 } from '../controllers/notificationController.js';
-import { protect, admin } from '../middleware/authMiddleware.js';
+import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// All routes are protected (require authentication)
+// Apply authentication middleware to all routes
 router.use(protect);
 
 // Get all notifications for the logged-in user
 router.get('/', getNotifications);
 
-// Create a new notification (admin only)
-router.post('/', admin, createNotification);
+// Create a new notification
+router.post('/', createNotification);
 
 // Mark a notification as read
 router.put('/:id/read', markAsRead);
 
-// Delete a notification (admin or recipient)
+// Delete a notification
 router.delete('/:id', deleteNotification);
 
 export default router;

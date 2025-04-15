@@ -1,31 +1,42 @@
 import Client from '../models/Client.js';
 
-// Get all clients (Admin sees all, Agent sees their own)
-export const getClients = async (req, res) => {
+// Get all clients (Admin sees all, Agent sees their own) with pagination
+export const getClients = async (req, res, next) => {
+  const { page = 1, limit = 20 } = req.query;
+
   try {
     const query = req.user.role === 'admin' ? {} : { createdBy: req.user._id };
-    const clients = await Client.find(query).select(
-      "id companyName contactName email phone region status createdBy createdAt"
-    ); // Ensure only required fields are returned
-    res.status(200).json(clients);
+    const clients = await Client.find(query)
+      .select("id companyName contactName email phone region status createdBy createdAt")
+      .skip((page - 1) * limit)
+      .limit(parseInt(limit));
+
+    const totalClients = await Client.countDocuments(query);
+
+    res.status(200).json({
+      clients,
+      totalPages: Math.ceil(totalClients / limit),
+      currentPage: parseInt(page),
+    });
   } catch (error) {
-    console.error("getClients: Error fetching clients:", error.message || error);
-    res.status(500).json({ message: "Failed to fetch clients." });
+    next(error); // Pass error to centralized error handler
   }
 };
 
 // Create a new client
-export const createClient = async (req, res) => {
+export const createClient = async (req, res, next) => {
   const { companyName, contactName, email, phone, address, region, annualRevenue } = req.body;
 
   try {
     if (!companyName || !contactName || !email || !phone) {
-      return res.status(400).json({ message: "All fields are required." });
+      res.status(400);
+      throw new Error("All fields are required.");
     }
 
     const existingClient = await Client.findOne({ email });
     if (existingClient) {
-      return res.status(400).json({ message: "Client already exists with this email." });
+      res.status(403);
+      throw new Error("Client already exists with this email.");
     }
 
     const client = new Client({
@@ -38,106 +49,97 @@ export const createClient = async (req, res) => {
       annualRevenue,
       createdBy: req.user._id,
     });
+
     const savedClient = await client.save();
-    res.status(201).json({
-      id: savedClient._id,
-      companyName: savedClient.companyName,
-      contactName: savedClient.contactName,
-      email: savedClient.email,
-      phone: savedClient.phone,
-      region: savedClient.region,
-      status: savedClient.status,
-      createdBy: savedClient.createdBy,
-      createdAt: savedClient.createdAt,
-    });
+    res.status(201).json(savedClient);
   } catch (error) {
-    console.error("createClient: Error creating client:", error.message || error);
-    res.status(500).json({ message: "Failed to create client." });
+    next(error);
   }
 };
 
 // Get a client by ID
-export const getClientById = async (req, res) => {
+export const getClientById = async (req, res, next) => {
   try {
-    const client = await Client.findById(req.params.id);
+    const client = await Client.findById(req.params.id).select(
+      "id companyName contactName email phone region status createdBy createdAt"
+    );
+
     if (!client) {
-      return res.status(404).json({ message: "Client not found." });
+      res.status(404);
+      throw new Error("Client not found.");
     }
+
     res.status(200).json(client);
   } catch (error) {
-    res.status(500).json({ message: "Failed to fetch client." });
+    next(error);
   }
 };
 
 // Update an existing client
-export const updateClient = async (req, res) => {
+export const updateClient = async (req, res, next) => {
   try {
     const client = await Client.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
     }).select(
       "id companyName contactName email phone region status createdBy createdAt"
-    ); // Ensure only required fields are returned
+    );
 
     if (!client) {
-      return res.status(404).json({ message: "Client not found." });
+      res.status(404);
+      throw new Error("Client not found.");
     }
 
     res.status(200).json(client);
   } catch (error) {
-    console.error("updateClient: Error updating client:", error.message || error);
-    res.status(500).json({ message: "Failed to update client." });
+    next(error);
   }
 };
 
 // Delete a client
-export const deleteClient = async (req, res) => {
+export const deleteClient = async (req, res, next) => {
   try {
     const client = await Client.findById(req.params.id);
+
     if (!client) {
-      return res.status(404).json({ message: "Client not found." });
+      res.status(404);
+      throw new Error("Client not found.");
     }
+
     await client.remove();
     res.json({ message: "Client removed successfully." });
   } catch (error) {
-    console.error("deleteClient: Error deleting client:", error.message || error);
-    res.status(500).json({ message: "Failed to delete client." });
+    next(error);
   }
 };
 
 // Search clients
-export const searchClients = async (req, res) => {
+export const searchClients = async (req, res, next) => {
   const { query } = req.query;
 
   if (!query) {
-    console.error("searchClients: Missing query parameter"); // Debugging log
-    return res.status(400).json({ message: "Query parameter is required." });
+    res.status(400);
+    throw new Error("Query parameter is required.");
   }
 
   try {
-    console.log("searchClients: Query parameter received:", query); // Debugging log
-
-    const clients = await Client.find(
-      {
-        $or: [
-          { companyName: { $regex: query, $options: "i" } },
-          { contactName: { $regex: query, $options: "i" } },
-          { email: { $regex: query, $options: "i" } },
-        ],
-      },
-      "id companyName contactName email phone region status createdBy createdAt" // Limit the fields returned
-    ).limit(20); // Limit the number of results
-
-    console.log("searchClients: Clients found:", clients); // Debugging log
+    const clients = await Client.find({
+      $or: [
+        { companyName: { $regex: query, $options: "i" } },
+        { contactName: { $regex: query, $options: "i" } },
+        { email: { $regex: query, $options: "i" } },
+      ],
+    })
+      .select("id companyName contactName email phone region status createdBy createdAt")
+      .limit(20);
 
     if (!clients.length) {
-      console.warn("searchClients: No clients found matching the query"); // Debugging log
-      return res.status(404).json({ message: "No clients found matching the query." });
+      res.status(404);
+      throw new Error("No clients found matching the query.");
     }
 
     res.status(200).json(clients);
   } catch (error) {
-    console.error("searchClients: Error occurred:", error.message || error); // Debugging log
-    res.status(500).json({ message: "Failed to search clients. Please try again later." });
+    next(error);
   }
 };

@@ -7,30 +7,37 @@ import {
   getMonthlyPerformance,
   getStatsOverview,
   getStatsDetails,
+  getTargetStats,
 } from '../controllers/statsController.js';
 import { protect } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Apply authentication middleware
+router.use(protect);
+
 // Route to get statistics (Both admin and agent)
-router.get('/', protect, getStatistics);
+router.get('/', getStatistics);
 
 // Route to get call target statistics
-router.get("/call-target", protect, getCallTargetStats);
+router.get("/call-target", getCallTargetStats);
 
 // Route to get region statistics
-router.get("/regions", protect, getRegionStats);
+router.get("/regions", getRegionStats);
 
 // Route to fetch metrics
-router.get("/metrics", protect, getMetrics);
+router.get("/metrics", getMetrics);
 
 // Route to fetch monthly performance statistics
-router.get("/monthly-performance", protect, getMonthlyPerformance);
+router.get("/monthly-performance", getMonthlyPerformance);
 
 // Route to get stats overview
-router.get('/overview', protect, getStatsOverview);
+router.get('/overview', getStatsOverview);
 
 // Route to get stats details
-router.get('/details', protect, getStatsDetails);
+router.get('/details', getStatsDetails);
+
+// Route to fetch target stats
+router.get("/targets", getTargetStats);
 
 export default router;

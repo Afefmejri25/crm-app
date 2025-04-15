@@ -1,30 +1,18 @@
 import Call from '../models/Call.js';
+import mongoose from 'mongoose';
 import { formatError, formatSuccess, handleValidationError, handleDuplicateKeyError, handleCastError } from '../utils/errorHandler.js';
 
-// Get all calls with optional filters
-export const getCalls = async (req, res) => {
+// Get all calls with role-based access
+export const getCalls = async (req, res, next) => {
   try {
-    const { client, agent, startDate, endDate, result } = req.query;
-    const filter = {};
-
-    if (client) filter.client = client;
-    if (agent) filter.agent = agent;
-    if (result) filter.result = result;
-    if (startDate || endDate) {
-      filter.date = {};
-      if (startDate) filter.date.$gte = new Date(startDate);
-      if (endDate) filter.date.$lte = new Date(endDate);
-    }
-
+    const filter = req.user.role === "admin" ? {} : { agent: req.user._id };
     const calls = await Call.find(filter)
-      .populate("client", "name email phone")
+      .populate("client", "companyName email phone")
       .populate("agent", "name email")
       .sort({ date: -1 });
-
-    res.json(formatSuccess(calls));
+    res.json(calls);
   } catch (error) {
-    console.error("Error fetching calls:", error);
-    res.status(500).json(formatError("Erreur lors de la récupération des appels"));
+    next(error);
   }
 };
 
@@ -64,93 +52,78 @@ export const getCallHistory = async (req, res) => {
 };
 
 // Create a new call
-export const createCall = async (req, res) => {
+export const createCall = async (req, res, next) => {
   try {
-    const { client, agent, date, duration, result, notes, scheduledCallback } = req.body;
+    const { client, date, result, notes, callbackDate, duration } = req.body;
 
-    if (!client || !agent || !date || !result) {
-      return res.status(400).json(formatError("Tous les champs obligatoires doivent être remplis"));
+    if (!client || !date || !result) {
+      res.status(400);
+      throw new Error("All required fields (client, date, result) must be filled.");
     }
 
     const call = new Call({
       client,
-      agent,
+      agent: req.user._id,
       date,
-      duration,
       result,
       notes,
-      scheduledCallback,
+      callbackDate,
+      duration,
       createdBy: req.user._id,
     });
 
-    await call.save();
-    const populatedCall = await Call.findById(call._id)
-      .populate("client", "name email phone")
+    const savedCall = await call.save();
+    const populatedCall = await Call.findById(savedCall._id)
+      .populate("client", "companyName email phone")
       .populate("agent", "name email");
 
-    res.status(201).json(formatSuccess(populatedCall, "Appel créé avec succès"));
+    res.status(201).json(populatedCall);
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return res.status(400).json(handleValidationError(error));
-    }
-    if (error.code === 11000) {
-      return res.status(400).json(handleDuplicateKeyError(error));
-    }
-    console.error("Error creating call:", error);
-    res.status(500).json(formatError("Erreur lors de la création de l'appel"));
+    next(error);
   }
 };
 
-// Update a call
-export const updateCall = async (req, res) => {
+// Update a call with role-based access
+export const updateCall = async (req, res, next) => {
   try {
-    const { date, duration, result, notes, scheduledCallback } = req.body;
     const call = await Call.findById(req.params.id);
 
     if (!call) {
-      return res.status(404).json(formatError("Appel non trouvé"));
+      res.status(404);
+      throw new Error("Call not found.");
     }
 
-    if (date) call.date = date;
-    if (duration) call.duration = duration;
-    if (result) call.result = result;
-    if (notes) call.notes = notes;
-    if (scheduledCallback) call.scheduledCallback = scheduledCallback;
-    call.updatedBy = req.user._id;
+    if (req.user.role !== "admin" && call.agent.toString() !== req.user._id.toString()) {
+      res.status(403);
+      throw new Error("Not authorized to update this call.");
+    }
 
-    await call.save();
-    const updatedCall = await Call.findById(call._id)
-      .populate("client", "name email phone")
-      .populate("agent", "name email");
-
-    res.json(formatSuccess(updatedCall, "Appel mis à jour avec succès"));
+    Object.assign(call, req.body);
+    const updatedCall = await call.save();
+    res.json(updatedCall);
   } catch (error) {
-    if (error.name === "ValidationError") {
-      return res.status(400).json(handleValidationError(error));
-    }
-    if (error.name === "CastError") {
-      return res.status(400).json(handleCastError(error));
-    }
-    console.error("Error updating call:", error);
-    res.status(500).json(formatError("Erreur lors de la mise à jour de l'appel"));
+    next(error);
   }
 };
 
-// Delete a call
-export const deleteCall = async (req, res) => {
+// Delete a call with role-based access
+export const deleteCall = async (req, res, next) => {
   try {
-    const call = await Call.findByIdAndDelete(req.params.id);
+    const call = await Call.findById(req.params.id);
 
     if (!call) {
-      return res.status(404).json(formatError("Appel non trouvé"));
+      res.status(404);
+      throw new Error("Call not found.");
     }
 
-    res.json(formatSuccess(null, "Appel supprimé avec succès"));
-  } catch (error) {
-    if (error.name === "CastError") {
-      return res.status(400).json(handleCastError(error));
+    if (req.user.role !== "admin" && call.agent.toString() !== req.user._id.toString()) {
+      res.status(403);
+      throw new Error("Not authorized to delete this call.");
     }
-    console.error("Error deleting call:", error);
-    res.status(500).json(formatError("Erreur lors de la suppression de l'appel"));
+
+    await call.remove();
+    res.json({ message: "Call deleted successfully." });
+  } catch (error) {
+    next(error);
   }
 };

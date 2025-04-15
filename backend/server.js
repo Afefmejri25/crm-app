@@ -9,7 +9,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import statsRoutes from './routes/statsRoutes.js';
-import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+import { notFound, errorHandler } from './middleware/errorMiddleware.js'; // Correct import
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { handleFallbackRoute } from './controllers/errorController.js';
@@ -57,7 +57,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', authRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/clients', clientRoutes);
-app.use('/api/appointments', appointmentRoutes);
+app.use('/api/appointments', appointmentRoutes); // Ensure this line exists
 app.use('/api/calls', callRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stats', statsRoutes);

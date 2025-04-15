@@ -5,12 +5,14 @@ const defaultPermissions = {
   admin: [
     'view_dashboard',
     'manage_clients',
+    'manage_own_clients', // Ensure this permission exists for admins
     'view_clients',
     'manage_appointments',
     'view_appointments',
     'manage_calls',
     'view_calls',
     'manage_documents',
+    'manage_own_documents', // Ensure this permission exists for admins
     'view_documents',
     'view_statistics',
     'manage_users',
@@ -20,10 +22,13 @@ const defaultPermissions = {
   agent: [
     'view_dashboard',
     'view_clients',
+    'manage_appointments', // Added permission for managing appointments
     'view_appointments',
     'manage_calls',
     'view_calls',
+    'manage_own_clients', // Ensure this permission exists for agents
     'view_documents',
+    'manage_own_documents', // Ensure this permission exists for agents
     'view_notifications'
   ]
 };

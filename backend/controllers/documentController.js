@@ -1,124 +1,143 @@
 import Document from '../models/Document.js';
 import fs from 'fs';
 import path from 'path';
+import { checkPermissions } from '../middleware/authMiddleware.js'; // Import checkPermissions middleware
 
 // Get all documents (Admin sees all, Agent sees their own)
-export const getDocuments = async (req, res) => {
-  console.log("getDocuments: Start"); // Debugging log
-  try {
-    const documents =
-      req.user.role === 'admin'
-        ? await Document.find({}).populate('uploadedBy', 'name email')
-        : await Document.find({ uploadedBy: req.user._id }).populate('uploadedBy', 'name email');
+export const getDocuments = [
+  checkPermissions(['view_documents']), // Apply permission check
+  async (req, res, next) => {
+    try {
+      console.log("getDocuments: User role:", req.user.role); // Debugging log
+      console.log("getDocuments: User ID:", req.user._id); // Debugging log
 
-    console.log("getDocuments: Retrieved documents:", documents); // Debugging log
-    res.status(200).json(documents);
-  } catch (error) {
-    console.error("getDocuments: Error fetching documents:", error.message || error);
-    res.status(500).json({ message: "Failed to fetch documents." });
+      const query = req.user.role === "admin" ? {} : { uploadedBy: req.user._id };
+      const documents = await Document.find(query).populate("uploadedBy", "name email");
+
+      console.log("getDocuments: Retrieved documents:", documents); // Debugging log
+      res.status(200).json(documents);
+    } catch (error) {
+      console.error("getDocuments: Error:", error); // Debugging log
+      next(error); // Pass error to centralized error handler
+    }
   }
-};
+];
 
 // Upload a new document
-export const uploadDocument = async (req, res) => {
-  console.log("uploadDocument: Start"); // Debugging log
-  console.log("uploadDocument: Incoming request body:", req.body); // Debugging log
+export const uploadDocument = [
+  checkPermissions(['manage_own_documents', 'manage_documents']), // Apply permission check
+  async (req, res, next) => {
+    try {
+      console.log("uploadDocument: Request body:", req.body); // Debugging log
+      console.log("uploadDocument: Uploaded file:", req.file); // Debugging log
 
-  try {
-    const { title, description, fileType } = req.body;
-    const fileContent = req.file?.path; // Ensure file is uploaded and path is available
+      const { title, description } = req.body;
+      const fileUrl = req.file?.path;
 
-    // Validate required fields
-    if (!title || !fileType || !fileContent) {
-      console.error("uploadDocument: Missing required fields"); // Debugging log
-      return res.status(400).json({ message: "Title, file type, and file content are required fields." });
+      if (!title || !fileUrl) {
+        console.error("uploadDocument: Missing title or fileUrl"); // Debugging log
+        res.status(400);
+        throw new Error("Title and file are required.");
+      }
+
+      const document = new Document({
+        title,
+        description,
+        fileUrl,
+        fileType: req.file.mimetype,
+        uploadedBy: req.user._id,
+      });
+
+      const savedDocument = await document.save();
+      console.log("uploadDocument: Saved document:", savedDocument); // Debugging log
+      res.status(201).json(savedDocument);
+    } catch (error) {
+      console.error("uploadDocument: Error:", error); // Debugging log
+      next(error);
     }
-
-    const document = new Document({
-      title,
-      description,
-      fileUrl: fileContent, // Save file path
-      fileType,
-      uploadedBy: req.user._id,
-    });
-
-    const uploadedDocument = await document.save();
-    console.log("uploadDocument: Document saved:", uploadedDocument); // Debugging log
-
-    res.status(201).json(uploadedDocument);
-  } catch (error) {
-    console.error("uploadDocument: Error uploading document:", error.message || error);
-    res.status(500).json({ message: "Failed to upload document." });
   }
-};
+];
 
 // Download a document
-export const downloadDocument = async (req, res) => {
-  try {
-    const document = await Document.findById(req.params.id);
+export const downloadDocument = [
+  checkPermissions(['view_documents']), // Apply permission check
+  async (req, res, next) => {
+    try {
+      console.log("downloadDocument: Document ID:", req.params.id); // Debugging log
 
-    if (!document) {
-      return res.status(404).json({ message: "Document not found." });
+      const document = await Document.findById(req.params.id);
+
+      if (!document) {
+        console.error("downloadDocument: Document not found"); // Debugging log
+        res.status(404);
+        throw new Error("Document not found.");
+      }
+
+      if (req.user.role !== 'admin' && document.uploadedBy.toString() !== req.user._id.toString()) {
+        console.error("downloadDocument: Unauthorized access"); // Debugging log
+        res.status(403);
+        throw new Error("Not authorized to download this document.");
+      }
+
+      const filePath = path.join(process.cwd(), document.fileUrl);
+
+      if (!fs.existsSync(filePath)) {
+        console.error("downloadDocument: File not found on server"); // Debugging log
+        res.status(404);
+        throw new Error("File not found on server.");
+      }
+
+      console.log("downloadDocument: File path:", filePath); // Debugging log
+      res.setHeader('Content-Disposition', `attachment; filename="${document.title}${path.extname(document.fileUrl)}"`);
+      res.setHeader('Content-Type', document.fileType);
+
+      const fileStream = fs.createReadStream(filePath);
+      fileStream.pipe(res);
+
+      fileStream.on('error', (error) => {
+        console.error("downloadDocument: File stream error:", error); // Debugging log
+        next(error);
+      });
+    } catch (error) {
+      console.error("downloadDocument: Error:", error); // Debugging log
+      next(error);
     }
-
-    if (req.user.role !== 'admin' && document.uploadedBy.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: "Not authorized to download this document." });
-    }
-
-    const filePath = path.join(process.cwd(), document.fileUrl);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: "File not found on server." });
-    }
-
-    // Set appropriate headers for file download
-    res.setHeader('Content-Disposition', `attachment; filename="${document.title}${path.extname(document.fileUrl)}"`);
-    res.setHeader('Content-Type', document.fileType);
-
-    // Stream the file to the response
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-
-    fileStream.on('error', (error) => {
-      console.error("Error streaming file:", error);
-      res.status(500).json({ message: "Error downloading file." });
-    });
-  } catch (error) {
-    console.error("Error downloading document:", error);
-    res.status(500).json({ message: "Failed to download document." });
   }
-};
+];
 
 // Delete a document
-export const deleteDocument = async (req, res) => {
-  console.log("deleteDocument: Start"); // Debugging log
-  const { id } = req.params;
-  console.log("deleteDocument: Document ID:", id); // Debugging log
+export const deleteDocument = [
+  checkPermissions(['manage_own_documents', 'manage_documents']), // Apply permission check
+  async (req, res, next) => {
+    try {
+      console.log("deleteDocument: Document ID:", req.params.id); // Debugging log
 
-  try {
-    const document = await Document.findById(id);
+      const document = await Document.findById(req.params.id);
 
-    if (!document) {
-      console.error("deleteDocument: Document not found"); // Debugging log
-      return res.status(404).json({ message: "Document not found." });
+      if (!document) {
+        console.error("deleteDocument: Document not found"); // Debugging log
+        res.status(404);
+        throw new Error("Document not found.");
+      }
+
+      if (req.user.role !== 'admin' && document.uploadedBy.toString() !== req.user._id.toString()) {
+        console.error("deleteDocument: Unauthorized access"); // Debugging log
+        res.status(403);
+        throw new Error("Not authorized to delete this document.");
+      }
+
+      const filePath = path.join(process.cwd(), document.fileUrl);
+      if (fs.existsSync(filePath)) {
+        console.log("deleteDocument: Deleting file:", filePath); // Debugging log
+        fs.unlinkSync(filePath);
+      }
+
+      await document.remove();
+      console.log("deleteDocument: Document removed successfully"); // Debugging log
+      res.json({ message: "Document removed successfully." });
+    } catch (error) {
+      console.error("deleteDocument: Error:", error); // Debugging log
+      next(error);
     }
-
-    if (req.user.role !== 'admin' && document.uploadedBy.toString() !== req.user._id.toString()) {
-      console.error("deleteDocument: Not authorized to delete this document"); // Debugging log
-      return res.status(403).json({ message: "Not authorized to delete this document." });
-    }
-
-    // Delete the file from the filesystem
-    const filePath = path.join(process.cwd(), document.fileUrl);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-    }
-
-    await document.remove();
-    console.log("deleteDocument: Document removed successfully"); // Debugging log
-    res.json({ message: "Document removed successfully." });
-  } catch (error) {
-    console.error("deleteDocument: Error deleting document:", error.message || error);
-    res.status(500).json({ message: "Failed to delete document." });
   }
-};
+];
