@@ -1,27 +1,20 @@
-import express from 'express';
+import express from "express";
 import {
   getNotifications,
   createNotification,
-  markAsRead,
   deleteNotification,
-} from '../controllers/notificationController.js';
-import { protect } from '../middleware/authMiddleware.js';
+  markNotificationAsRead,
+} from "../controllers/notificationController.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Apply authentication middleware to all routes
-router.use(protect);
+router.route("/")
+  .get(protect, getNotifications) // Fetch all notifications
+  .post(protect, createNotification); // Create a new notification
 
-// Get all notifications for the logged-in user
-router.get('/', getNotifications);
-
-// Create a new notification
-router.post('/', createNotification);
-
-// Mark a notification as read
-router.put('/:id/read', markAsRead);
-
-// Delete a notification
-router.delete('/:id', deleteNotification);
+router.route("/:id")
+  .delete(protect, deleteNotification) // Delete a notification
+  .patch(protect, markNotificationAsRead); // Mark a notification as read/unread
 
 export default router;

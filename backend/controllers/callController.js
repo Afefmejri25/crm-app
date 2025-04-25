@@ -54,17 +54,24 @@ export const getCallHistory = async (req, res) => {
 // Create a new call
 export const createCall = async (req, res, next) => {
   try {
-    const { client, date, result, notes, callbackDate, duration } = req.body;
+    const { clientId, callDate, result, notes, callbackDate, duration } = req.body;
 
-    if (!client || !date || !result) {
+    console.log("Received call data:", req.body); // Debugging log
+
+    if (!clientId || !callDate || !result) {
       res.status(400);
       throw new Error("All required fields (client, date, result) must be filled.");
     }
 
+    if (!mongoose.Types.ObjectId.isValid(clientId)) {
+      res.status(400);
+      throw new Error("Invalid client ID.");
+    }
+
     const call = new Call({
-      client,
-      agent: req.user._id,
-      date,
+      client: clientId, // Map clientId to client
+      agent: req.user._id, // Set agent to the authenticated user's ID
+      date: callDate, // Map callDate to date
       result,
       notes,
       callbackDate,
@@ -73,12 +80,15 @@ export const createCall = async (req, res, next) => {
     });
 
     const savedCall = await call.save();
+    console.log("Call saved successfully:", savedCall); // Debugging log
+
     const populatedCall = await Call.findById(savedCall._id)
       .populate("client", "companyName email phone")
       .populate("agent", "name email");
 
     res.status(201).json(populatedCall);
   } catch (error) {
+    console.error("Error creating call:", error.message || error); // Debugging log
     next(error);
   }
 };
@@ -112,16 +122,18 @@ export const deleteCall = async (req, res, next) => {
     const call = await Call.findById(req.params.id);
 
     if (!call) {
+      console.error(`deleteCall: Call with ID ${req.params.id} not found.`); // Debugging log
       res.status(404);
       throw new Error("Call not found.");
     }
 
     if (req.user.role !== "admin" && call.agent.toString() !== req.user._id.toString()) {
+      console.error(`deleteCall: Unauthorized access by user ${req.user._id}.`); // Debugging log
       res.status(403);
       throw new Error("Not authorized to delete this call.");
     }
 
-    await call.remove();
+    await call.deleteOne();
     res.json({ message: "Call deleted successfully." });
   } catch (error) {
     next(error);

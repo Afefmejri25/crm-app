@@ -3,6 +3,7 @@ import User from '../models/User.js';
 import Client from '../models/Client.js';
 import Appointment from "../models/Appointment.js";
 import Document from "../models/Document.js";
+import Email from "../models/Email.js";
 
 export const getStatistics = async (req, res, next) => {
   try {
@@ -75,11 +76,134 @@ export const getRegionStats = async (req, res, next) => {
   }
 };
 
+// Fetch daily performance statistics
+export const getDailyPerformance = async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const newClients = await Client.countDocuments({ createdAt: { $gte: today } });
+    const calls = await Call.countDocuments({ callDate: { $gte: today } });
+    const appointments = await Appointment.countDocuments({ startTime: { $gte: today } });
+    const emails = await Email.countDocuments({ sentAt: { $gte: today } });
+
+    const topAgents = await Call.aggregate([
+      { $match: { callDate: { $gte: today } } },
+      { $group: { _id: "$createdBy", totalCalls: { $sum: 1 } } },
+      { $sort: { totalCalls: -1 } },
+      { $limit: 3 },
+      {
+        $lookup: {
+          from: "users",
+          localField: "_id",
+          foreignField: "_id",
+          as: "agentDetails",
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      newClients,
+      calls,
+      appointments,
+      emails,
+      topAgents: topAgents.map((agent) => ({
+        id: agent._id,
+        name: agent.agentDetails[0]?.name || "Inconnu",
+        totalCalls: agent.totalCalls,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching daily performance:", error);
+    res.status(500).json({ message: "Erreur lors de la récupération des performances quotidiennes." });
+  }
+};
+
+// Fetch agents' performance statistics
+export const getAgentsPerformance = async (req, res) => {
+  try {
+    const agents = await User.find({ role: "agent" });
+
+    const performance = await Promise.all(
+      agents.map(async (agent) => {
+        const calls = await Call.countDocuments({ createdBy: agent._id });
+        const appointments = await Appointment.countDocuments({ createdBy: agent._id });
+        const emails = await Email.countDocuments({ createdBy: agent._id });
+
+        const callSuccessRate = calls
+          ? Math.round(
+              (await Call.countDocuments({ createdBy: agent._id, result: "answered" })) / calls * 100
+            )
+          : 0;
+
+        return {
+          id: agent._id,
+          name: agent.name,
+          newClients: await Client.countDocuments({ createdBy: agent._id }),
+          calls,
+          appointments,
+          emails,
+          callSuccessRate,
+        };
+      })
+    );
+
+    res.status(200).json({ performance });
+  } catch (error) {
+    console.error("Error fetching agents' performance:", error);
+    res.status(500).json({ message: "Erreur lors de la récupération des performances des agents." });
+  }
+};
+
+// Fetch detailed analytics
+export const getDetailedAnalytics = async (req, res) => {
+  try {
+    const totalCalls = await Call.countDocuments();
+    const successfulCalls = await Call.countDocuments({ result: "Success" });
+    const failedCalls = totalCalls - successfulCalls;
+
+    const regionStats = await Client.aggregate([
+      { $group: { _id: "$region", totalClients: { $sum: 1 } } },
+      { $sort: { totalClients: -1 } },
+    ]);
+
+    const monthlyPerformance = await Call.aggregate([
+      {
+        $group: {
+          _id: { $month: "$callDate" },
+          totalCalls: { $sum: 1 },
+          successfulCalls: { $sum: { $cond: [{ $eq: ["$result", "Success"] }, 1, 0] } },
+        },
+      },
+      { $sort: { "_id": 1 } },
+    ]);
+
+    const monthlyStats = monthlyPerformance.map((month) => ({
+      month: month._id,
+      totalCalls: month.totalCalls,
+      successRate: month.totalCalls
+        ? Math.round((month.successfulCalls / month.totalCalls) * 100)
+        : 0,
+    }));
+
+    res.status(200).json({
+      totalCalls,
+      successfulCalls,
+      failedCalls,
+      regionStats,
+      monthlyStats,
+    });
+  } catch (error) {
+    console.error("Error fetching detailed analytics:", error);
+    res.status(500).json({ message: "Erreur lors de la récupération des statistiques détaillées." });
+  }
+};
+
+// Fetch metrics
 export const getMetrics = async (req, res, next) => {
   try {
     const { agentId } = req.query;
 
-    // Filter based on agentId or user role
     const filter = agentId
       ? { createdBy: agentId }
       : req.user.role === "admin"
@@ -90,6 +214,11 @@ export const getMetrics = async (req, res, next) => {
     const totalClients = await Client.countDocuments(filter);
     const totalAppointments = await Appointment.countDocuments(filter);
     const totalDocuments = await Document.countDocuments(filter);
+    const totalEmails = await Email.countDocuments(filter);
+    const totalCallbacks = await Call.countDocuments({
+      ...filter,
+      result: "callback",
+    });
 
     const successfulCalls = await Call.countDocuments({
       ...filter,
@@ -102,10 +231,12 @@ export const getMetrics = async (req, res, next) => {
       totalClients,
       totalAppointments,
       totalDocuments,
+      totalEmails,
+      totalCallbacks,
       successRate: successRate.toFixed(2),
     });
   } catch (error) {
-    next(error); // Pass error to centralized error handler
+    next(error);
   }
 };
 
@@ -133,59 +264,6 @@ export const getMonthlyPerformance = async (req, res, next) => {
     });
 
     res.status(200).json({ successRatePerMonth, callsPerMonth });
-  } catch (error) {
-    next(error); // Pass error to centralized error handler
-  }
-};
-
-// Get detailed statistics
-export const getStatsDetails = async (req, res, next) => {
-  try {
-    // Example logic for fetching detailed statistics
-    const statsDetails = {
-      totalCalls: 120,
-      successfulCalls: 90,
-      failedCalls: 30,
-      regions: [
-        { region: "North America", calls: 50 },
-        { region: "Europe", calls: 40 },
-        { region: "Asia", calls: 30 },
-      ],
-    };
-
-    res.status(200).json(statsDetails);
-  } catch (error) {
-    next(error); // Pass error to centralized error handler
-  }
-};
-
-// Get an overview of statistics
-export const getStatsOverview = async (req, res, next) => {
-  try {
-    // Example logic for fetching statistics overview
-    const statsOverview = {
-      totalUsers: 100,
-      totalDocuments: 200,
-      totalCalls: 150,
-      totalNotifications: 50,
-    };
-
-    res.status(200).json(statsOverview);
-  } catch (error) {
-    next(error); // Pass error to centralized error handler
-  }
-};
-
-export const getTargetStats = async (req, res, next) => {
-  try {
-    const agentId = req.query.agentId;
-
-    // Example logic for fetching target stats
-    const stats = agentId
-      ? { progress: 75, todayCalls: 10 } // Mock data for an agent
-      : { progress: 50, todayCalls: 20 }; // Mock data for admin
-
-    res.status(200).json(stats);
   } catch (error) {
     next(error); // Pass error to centralized error handler
   }

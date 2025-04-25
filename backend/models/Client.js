@@ -2,14 +2,18 @@ import mongoose from 'mongoose';
 
 const clientSchema = new mongoose.Schema(
   {
-    companyName: { type: String, required: true },
-    contactName: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    phone: { type: String, required: true },
+    companyName: { type: String, required: true, unique: true }, // Ensure companyName is unique
+    email: { 
+      type: String, 
+      required: false, 
+      unique: true, 
+      sparse: true // Ensure unique index ignores null or empty values
+    },
+    contactName: { type: String, required: true }, // Ensure contactName is unique
+    phone: { type: String, required: false }, // Optional phone field
     address: { type: String, required: true },
     region: { type: String, required: true },
-    annualRevenue: { type: Number, required: true },
-    tags: { type: [String], default: [] },
+    annualRevenue: { type: Number, required: false },
     leadPriority: { type: String, enum: ['Hot', 'Warm', 'Cold'], default: 'Cold' },
     pipelineStage: {
       type: String,

@@ -7,7 +7,7 @@ import {
   deleteClient,
   searchClients,
 } from '../controllers/clientController.js';
-import { protect, admin, checkPermissions } from '../middleware/authMiddleware.js';
+import { protect, checkPermissions } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -16,13 +16,17 @@ router.use(protect);
 
 // Routes for client management
 router.route('/')
-  .get(getClients)
-  .post(createClient); // Add POST route for creating a client
+  .get(getClients); // Fetch all clients
+
+router.route('/create')
+  .post(createClient); // Route for creating a client
+
+router.route('/update/:id')
+  .put(protect, checkPermissions(['manage_own_clients', 'manage_all_clients']), updateClient); // Ensure middleware and handler are applied
 
 router.route('/:id')
-  .get(getClientById)
-  .put(checkPermissions(['manage_own_clients', 'manage_all_clients'], 'some'), updateClient)
-  .delete(admin, deleteClient); // Only admins can delete clients
+  .get(getClientById) // Route for fetching a client by ID
+  .delete(checkPermissions(['manage_own_clients', 'manage_all_clients', 'manage_clients']), deleteClient); // Route for deleting a client
 
 // Search clients
 router.get('/search', searchClients);

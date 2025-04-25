@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -14,35 +14,33 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ["document", "appointment", "call", "reminder"],
+      enum: ["info", "warning", "error", "success"],
       required: [true, "Le type de notification est requis"],
     },
-    recipients: [
-      {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: "User", // Ensure this matches the User model
-        required: true,
-      },
-    ],
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+    recipients: {
+      type: [
+        {
+          id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+          name: { type: String, required: true },
+          email: { type: String, required: true },
+        },
+      ],
+      default: "all", // Default to "all" if no recipients are specified
     },
     isRead: {
       type: Boolean,
       default: false,
     },
+    createdBy: {
+      id: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+      name: { type: String, required: true },
+      email: { type: String, required: true },
+    },
   },
   {
-    timestamps: true,
+    timestamps: true, // Automatically add `createdAt` and `updatedAt` fields
   }
 );
-
-// Add indexes for better query performance
-notificationSchema.index({ title: "text", message: "text" });
-notificationSchema.index({ type: 1 });
-notificationSchema.index({ recipients: 1 });
 
 const Notification = mongoose.models.Notification || mongoose.model("Notification", notificationSchema);
 

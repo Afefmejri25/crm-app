@@ -24,36 +24,34 @@ export const getClients = async (req, res, next) => {
 };
 
 // Create a new client
-export const createClient = async (req, res, next) => {
-  const { companyName, contactName, email, phone, address, region, annualRevenue } = req.body;
-
+export const createClient = async (req, res) => {
   try {
-    if (!companyName || !contactName || !email || !phone) {
-      res.status(400);
-      throw new Error("All fields are required.");
+    // Check if the user has the required role
+    if (req.user.role !== "admin" && req.user.role !== "agent") {
+      return res.status(403).json({ message: "Vous n'êtes pas autorisé à créer un client." });
     }
 
-    const existingClient = await Client.findOne({ email });
-    if (existingClient) {
-      res.status(403);
-      throw new Error("Client already exists with this email.");
+    const { companyName, contactName, email, phone, address, region } = req.body;
+
+    if (!companyName || !contactName) {
+      return res.status(400).json({ message: "Tous les champs obligatoires doivent être remplis." });
     }
 
     const client = new Client({
       companyName,
       contactName,
-      email,
-      phone,
+      email: email === "" ? undefined : email, // Set email to undefined if it's an empty string
+      phone: phone === "" ? undefined : phone, // Set phone to undefined if it's an empty string
       address,
       region,
-      annualRevenue,
-      createdBy: req.user._id,
+      createdBy: req.user._id, // Associate the client with the authenticated user
     });
 
     const savedClient = await client.save();
     res.status(201).json(savedClient);
   } catch (error) {
-    next(error);
+    console.error("Error creating client:", error);
+    res.status(500).json({ message: "Erreur lors de la création du client." });
   }
 };
 
@@ -77,21 +75,41 @@ export const getClientById = async (req, res, next) => {
 
 // Update an existing client
 export const updateClient = async (req, res, next) => {
-  try {
-    const client = await Client.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    }).select(
-      "id companyName contactName email phone region status createdBy createdAt"
-    );
+  const { id } = req.params; // Extract the client ID from the request parameters
+  const { companyName, contactName, email, phone, address, region, annualRevenue, tags } = req.body;
 
-    if (!client) {
-      res.status(404);
-      throw new Error("Client not found.");
+  try {
+    if (!companyName || !contactName || !address || !region || !annualRevenue) {
+      res.status(400);
+      throw new Error("Tous les champs obligatoires doivent être remplis.");
     }
 
-    res.status(200).json(client);
+    const client = await Client.findById(id); // Find the client by ID
+    if (!client) {
+      res.status(404);
+      throw new Error("Client introuvable.");
+    }
+
+    // Check if the user has permission to update the client
+    if (req.user.role !== "admin" && client.createdBy.toString() !== req.user._id.toString()) {
+      res.status(403);
+      throw new Error("Vous n'êtes pas autorisé à modifier ce client.");
+    }
+
+    // Update client fields
+    client.companyName = companyName || client.companyName;
+    client.contactName = contactName || client.contactName;
+    client.email = email === "" ? null : email || client.email;
+    client.phone = phone || client.phone;
+    client.address = address || client.address;
+    client.region = region || client.region;
+    client.annualRevenue = annualRevenue || client.annualRevenue;
+    client.tags = tags || client.tags;
+
+    const updatedClient = await client.save(); // Save the updated client to the database
+    res.status(200).json(updatedClient);
   } catch (error) {
+    console.error("Error updating client:", error.message || error); // Log the error for debugging
     next(error);
   }
 };
@@ -106,7 +124,13 @@ export const deleteClient = async (req, res, next) => {
       throw new Error("Client not found.");
     }
 
-    await client.remove();
+    // Check if the user has permission to delete the client
+    if (req.user.role !== "admin" && client.createdBy.toString() !== req.user._id.toString()) {
+      res.status(403);
+      throw new Error("Not authorized to delete this client.");
+    }
+
+    await client.deleteOne(); // Use deleteOne instead of remove
     res.json({ message: "Client removed successfully." });
   } catch (error) {
     next(error);

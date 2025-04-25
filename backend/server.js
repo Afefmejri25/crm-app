@@ -7,6 +7,7 @@ import clientRoutes from './routes/clientRoutes.js';
 import callRoutes from './routes/callRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import appointmentRoutes from './routes/appointmentRoutes.js';
+import emailRoutes from './routes/emailRoutes.js'; // Ensure this import is correct
 import documentRoutes from './routes/documentRoutes.js';
 import statsRoutes from './routes/statsRoutes.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js'; // Correct import
@@ -36,7 +37,7 @@ app.use((req, res, next) => {
 // Configure CORS
 const corsOptions = {
   origin: ["http://localhost:3000", "http://localhost:5173"],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE","PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   exposedHeaders: ["Content-Range", "X-Content-Range"],
   credentials: true,
@@ -61,6 +62,7 @@ app.use('/api/appointments', appointmentRoutes); // Ensure this line exists
 app.use('/api/calls', callRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/emails', emailRoutes); // Ensure this matches the frontend endpoint
 
 // Health check endpoint
 app.get('/health', (req, res) => {

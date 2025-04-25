@@ -17,7 +17,11 @@ const defaultPermissions = {
     'view_statistics',
     'manage_users',
     'view_notifications',
-    'manage_notifications'
+    'manage_notifications',
+    'view_emails',     // Admin can view emails
+    'view_all_emails', // Admin can view all emails
+    'send_emails',     // Admin can send emails
+    'delete_emails'    // Admin can delete emails
   ],
   agent: [
     'view_dashboard',
@@ -29,7 +33,9 @@ const defaultPermissions = {
     'manage_own_clients', // Ensure this permission exists for agents
     'view_documents',
     'manage_own_documents', // Ensure this permission exists for agents
-    'view_notifications'
+    'view_notifications',
+    'view_own_emails', // Agent can view their own emails
+    'send_emails'      // Agent can send emails
   ]
 };
 
@@ -83,7 +89,4 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Check if the model already exists before defining it
-const User = mongoose.models.User || mongoose.model("User", userSchema);
-
-export default User;
+export default mongoose.model("User", userSchema); // Use `export default`

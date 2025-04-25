@@ -55,38 +55,22 @@ export const getUserProfile = async (req, res) => {
   }
 };
 
-export const registerUser = async (req, res, next) => {
-  const { name, email, password } = req.body;
-
+// Register a new user
+export const registerUser = async (req, res) => {
   try {
-    if (!name || !email || !password) {
-      res.status(400);
-      throw new Error("Name, email, and password are required.");
-    }
+    const { name, email, password, role } = req.body;
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      res.status(400);
-      throw new Error("User already exists with this email.");
-    }
+    const permissions = role === "admin"
+      ? ["view_all_emails", "send_emails", "delete_emails"] // Admin permissions
+      : ["view_own_emails", "send_emails"]; // Agent permissions
 
-    const user = new User({
-      name,
-      email,
-      password,
-      permissions: [],
-    });
+    const user = new User({ name, email, password, role, permissions });
+    await user.save();
 
-    const savedUser = await user.save();
-    res.status(201).json({
-      id: savedUser._id,
-      name: savedUser.name,
-      email: savedUser.email,
-      role: savedUser.role,
-      permissions: savedUser.permissions,
-    });
+    res.status(201).json({ message: "User registered successfully." });
   } catch (error) {
-    next(error);
+    console.error("Error registering user:", error);
+    res.status(500).json({ message: "Failed to register user." });
   }
 };
 
@@ -105,10 +89,12 @@ export const getCurrentUser = async (req, res) => {
 
 export const getAgents = async (req, res) => {
   try {
-    const agents = await User.find({ role: 'agent' }).select('-password');
+    const agents = await User.find({ role: "agent" }).select("-password");
     res.json(agents);
   } catch (error) {
     console.error("Error fetching agents:", error);
     res.status(500).json({ message: "Failed to fetch agents." });
   }
 };
+
+

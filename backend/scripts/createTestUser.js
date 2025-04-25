@@ -10,7 +10,7 @@ const createTestUser = async () => {
     console.log('Connected to MongoDB');
 
     // Check if test user already exists
-    const existingUser = await User.findOne({ email: 'Khaled@cinden-crm.com' });
+    const existingUser = await User.findOne({ email: 'Marwa@cinden-crm.com' });
     if (existingUser) {
       console.log('Test user already exists');
       await mongoose.disconnect();
@@ -19,10 +19,10 @@ const createTestUser = async () => {
 
     // Create test user
     const testUser = new User({
-      name: 'Khaled',
-      email: 'Khaled@cinden-crm.com',
-      password: 'Afef2025-',
-      role: 'agent'
+      name: 'Marwa',
+      email: 'Marwa@cinden-crm.com',
+      password: 'Ma2025#',
+      role: 'admin',
     });
 
     await testUser.save();

@@ -1,130 +1,80 @@
-import Notification from '../models/Notification.js';
-import User from '../models/User.js';
+import Notification from "../models/Notification.js";
 
-// Get all notifications for the logged-in user
-export const getNotifications = async (req, res, next) => {
+// Fetch all notifications
+export const getNotifications = async (req, res) => {
   try {
-    const filter = req.user.role === "admin" ? {} : { recipients: req.user._id };
-    const notifications = await Notification.find(filter)
-      .populate("recipients", "name email") // Correctly populate the recipients field
-      .populate("createdBy", "name email")
-      .sort({ createdAt: -1 });
-    res.json(notifications);
+    const notifications = await Notification.find({}).sort({ createdAt: -1 });
+    res.status(200).json({ notifications });
   } catch (error) {
-    next(error); // Pass error to centralized error handler
+    res.status(500).json({ message: "Erreur lors de la récupération des notifications." });
   }
 };
 
 // Create a new notification
-export const createNotification = async (req, res, next) => {
+export const createNotification = async (req, res) => {
   const { title, message, type, recipients } = req.body;
 
-  // Validate required fields
-  if (!title || !message || !type || !recipients || !Array.isArray(recipients)) {
-    return res.status(400).json({
-      message: "Title, message, type, and recipients array are required.",
-    });
-  }
-
-  // Filter out null/undefined values and validate recipients array
-  const validRecipients = recipients.filter(
-    (recipient) => recipient && typeof recipient === "string" && recipient.length > 0
-  );
-
-  if (validRecipients.length === 0) {
-    return res.status(400).json({
-      message: "At least one valid recipient is required.",
-    });
-  }
-
-  // Validate notification type
-  const validTypes = ["document", "appointment", "call", "reminder"];
-  if (!validTypes.includes(type)) {
-    return res.status(400).json({
-      message: "Invalid notification type. Must be one of: document, appointment, call, reminder",
-    });
+  if (!title || !message || !type || !recipients) {
+    return res.status(400).json({ message: "Tous les champs sont obligatoires." });
   }
 
   try {
-    console.log("createNotification: Incoming data:", { title, message, type, recipients }); // Debugging log
-
-    // Verify all recipients exist
-    const users = await User.find({ _id: { $in: validRecipients } });
-    if (users.length !== validRecipients.length) {
-      return res.status(400).json({ message: "One or more recipients do not exist." });
-    }
-
-    const notification = new Notification({
+    const notification = await Notification.create({
       title,
       message,
       type,
-      recipients: validRecipients,
-      createdBy: req.user._id,
+      recipients,
+      isRead: false,
+      createdBy: {
+        id: req.user.id,
+        name: req.user.name,
+        email: req.user.email,
+      },
     });
 
-    const createdNotification = await notification.save();
-    console.log("createNotification: Notification created:", createdNotification); // Debugging log
-
-    // Populate the fields before sending response
-    await createdNotification.populate("recipients", "name email");
-    await createdNotification.populate("createdBy", "name email");
-
-    res.status(201).json(createdNotification);
+    res.status(201).json(notification);
   } catch (error) {
-    next(error); // Pass error to centralized error handler
-  }
-};
-
-// Mark a notification as read
-export const markAsRead = async (req, res, next) => {
-  try {
-    const notification = await Notification.findById(req.params.id);
-
-    if (!notification) {
-      res.status(404);
-      throw new Error("Notification not found.");
-    }
-
-    if (!notification.recipients.includes(req.user._id)) {
-      res.status(403);
-      throw new Error("Not authorized to mark this notification as read.");
-    }
-
-    // Update the isRead field for the specific user
-    notification.isRead = true;
-    const updatedNotification = await notification.save();
-
-    // Populate the fields before sending response
-    await updatedNotification.populate("recipients", "name email");
-    await updatedNotification.populate("createdBy", "name email");
-
-    res.json(updatedNotification);
-  } catch (error) {
-    next(error); // Pass error to centralized error handler
+    res.status(500).json({ message: "Erreur lors de la création de la notification." });
   }
 };
 
 // Delete a notification
-export const deleteNotification = async (req, res, next) => {
+export const deleteNotification = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const notification = await Notification.findById(id);
+    const notification = await Notification.findByIdAndDelete(id);
 
     if (!notification) {
-      res.status(404);
-      throw new Error("Notification not found.");
+      return res.status(404).json({ message: "Notification introuvable." });
     }
 
-    // Check if the user is the creator of the notification
-    if (notification.createdBy.toString() !== req.user._id.toString()) {
-      res.status(403);
-      throw new Error("Not authorized to delete this notification.");
-    }
-
-    await notification.deleteOne();
-    res.json({ message: "Notification removed successfully." });
+    res.status(200).json({ message: "Notification supprimée avec succès." });
   } catch (error) {
-    next(error); // Pass error to centralized error handler
+    console.error("Error in deleteNotification:", error); // Log the error for debugging
+    res.status(500).json({ message: "Erreur lors de la suppression de la notification." });
+  }
+};
+
+// Mark a notification as read/unread
+export const markNotificationAsRead = async (req, res) => {
+  const { id } = req.params;
+  const { isRead } = req.body;
+
+  try {
+    const notification = await Notification.findByIdAndUpdate(
+      id,
+      { isRead },
+      { new: true, runValidators: true } // Return the updated document and run validators only on updated fields
+    );
+
+    if (!notification) {
+      return res.status(404).json({ message: "Notification introuvable." });
+    }
+
+    res.status(200).json(notification);
+  } catch (error) {
+    console.error("Error in markNotificationAsRead:", error); // Log the error for debugging
+    res.status(500).json({ message: "Erreur lors de la mise à jour de la notification." });
   }
 };

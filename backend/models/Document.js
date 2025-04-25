@@ -1,51 +1,35 @@
-import mongoose from 'mongoose';
+import mongoose from "mongoose";
 
 const documentSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      required: [true, "Le titre est requis"],
-      trim: true,
+      required: true,
     },
     description: {
       type: String,
-      trim: true,
-    },
-    fileUrl: {
-      type: String,
-      required: [true, "Le chemin du fichier est requis"],
     },
     fileType: {
       type: String,
-      required: [true, "Le type de fichier est requis"],
+      required: true,
+    },
+    fileUrl: {
+      type: String,
+      required: true,
     },
     uploadedBy: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       required: true,
     },
-    isPrivate: {
-      type: Boolean,
-      default: false,
-    },
-    tags: [{
-      type: String,
-      trim: true,
-    }],
-    category: {
-      type: String,
-      trim: true,
-      default: "General",
-    },
-    lastAccessed: {
+    uploadedAt: {
       type: Date,
-      default: null,
+      default: Date.now,
     },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-const Document = mongoose.models.Document || mongoose.model('Document', documentSchema);
+const Document = mongoose.model("Document", documentSchema);
+
 export default Document;

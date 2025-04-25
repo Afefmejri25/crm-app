@@ -3,14 +3,25 @@ import mongoose from 'mongoose';
 
 // Get all appointments (Admin sees all, Agent sees their own)
 export const getAppointments = async (req, res, next) => {
+  const { page = 1, limit = 20 } = req.query; // Extract pagination parameters
+
   try {
     const query = req.user.role === "admin" ? {} : { createdBy: req.user._id };
     const appointments = await Appointment.find(query)
       .populate("client", "companyName contactName")
       .populate("agent", "name email")
       .populate("createdBy", "name email")
-      .sort({ startTime: 1 });
-    res.status(200).json(appointments);
+      .sort({ startTime: 1 })
+      .skip((page - 1) * limit) // Apply pagination
+      .limit(parseInt(limit)); // Limit the number of results
+
+    const totalAppointments = await Appointment.countDocuments(query); // Get total count
+
+    res.status(200).json({
+      appointments,
+      totalPages: Math.ceil(totalAppointments / limit),
+      currentPage: parseInt(page),
+    });
   } catch (error) {
     next(error);
   }
@@ -18,39 +29,36 @@ export const getAppointments = async (req, res, next) => {
 
 // Create a new appointment
 export const createAppointment = async (req, res, next) => {
-  const { title, description, startTime, endTime, client, location, status } = req.body;
-
   try {
-    if (!title || !startTime || !endTime || !client) {
-      res.status(400);
-      throw new Error("All required fields (title, startTime, endTime, client) must be provided.");
-    }
+    const { title, client, agent, startTime, endTime, location, status } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(client)) {
-      res.status(400);
-      throw new Error("Invalid client ID.");
-    }
+    // Debugging logs
+    console.log("Received appointment data:", req.body);
 
-    if (new Date(endTime) <= new Date(startTime)) {
+    // Validate required fields
+    if (!title || !client || !agent || !startTime || !endTime) {
+      console.error("createAppointment: Missing required fields.");
       res.status(400);
-      throw new Error("End time must be after start time.");
+      throw new Error("Title, client, agent, startTime, and endTime are required.");
     }
 
     const appointment = new Appointment({
       title,
-      description,
+      client,
+      agent,
       startTime,
       endTime,
-      client,
-      location,
-      status,
-      agent: req.user._id,
+      location: location || null,
+      status: status || "scheduled",
       createdBy: req.user._id,
     });
 
-    const createdAppointment = await appointment.save();
-    res.status(201).json(createdAppointment);
+    const savedAppointment = await appointment.save();
+    console.log("Appointment created successfully:", savedAppointment);
+
+    res.status(201).json(savedAppointment);
   } catch (error) {
+    console.error("Error creating appointment:", error.message || error);
     next(error);
   }
 };
@@ -122,7 +130,7 @@ export const deleteAppointment = async (req, res, next) => {
       throw new Error("Not authorized to delete this appointment.");
     }
 
-    await appointment.remove();
+    await appointment.deleteOne();
     res.json({ message: "Appointment removed successfully." });
   } catch (error) {
     next(error);

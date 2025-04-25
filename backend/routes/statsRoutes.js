@@ -1,23 +1,23 @@
-import express from 'express';
+import express from "express";
 import {
   getStatistics,
   getCallTargetStats,
   getRegionStats,
   getMetrics,
   getMonthlyPerformance,
-  getStatsOverview,
-  getStatsDetails,
-  getTargetStats,
-} from '../controllers/statsController.js';
-import { protect } from '../middleware/authMiddleware.js';
+  getDailyPerformance,
+  getAgentsPerformance,
+  getDetailedAnalytics,
+} from "../controllers/statsController.js";
+import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
 // Apply authentication middleware
 router.use(protect);
 
-// Route to get statistics (Both admin and agent)
-router.get('/', getStatistics);
+// Route to get general statistics
+router.get("/", getStatistics);
 
 // Route to get call target statistics
 router.get("/call-target", getCallTargetStats);
@@ -31,13 +31,13 @@ router.get("/metrics", getMetrics);
 // Route to fetch monthly performance statistics
 router.get("/monthly-performance", getMonthlyPerformance);
 
-// Route to get stats overview
-router.get('/overview', getStatsOverview);
+// Route to fetch daily performance statistics
+router.get("/daily-performance", getDailyPerformance);
 
-// Route to get stats details
-router.get('/details', getStatsDetails);
+// Route to fetch agents' performance statistics
+router.get("/agents-performance", getAgentsPerformance);
 
-// Route to fetch target stats
-router.get("/targets", getTargetStats);
+// Route to fetch detailed analytics
+router.get("/analytics", getDetailedAnalytics);
 
 export default router;
