@@ -36,7 +36,7 @@ app.use((req, res, next) => {
 
 // Configure CORS
 const corsOptions = {
-  origin: ["http://localhost:3000", "http://localhost:5173"],
+  origin: ["https://68169a42612d93627031106f--cineden-worfforce-tunisia.netlify.app", "http://localhost:5173"],
   methods: ["GET", "POST", "PUT", "DELETE","PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
   exposedHeaders: ["Content-Range", "X-Content-Range"],
