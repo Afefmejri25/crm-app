@@ -13,7 +13,7 @@ const appointmentSchema = new mongoose.Schema(
     },
     startTime: {
       type: Date,
-      required: [true, "L'heure de début est requise"],
+      required: [false, "L'heure de début est requise"],
     },
     endTime: {
       type: Date,
