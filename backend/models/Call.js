@@ -18,7 +18,7 @@ const callSchema = new mongoose.Schema(
     },
     result: {
       type: String,
-      enum: ['answered', 'no_answer', 'busy', 'callback', 'wrong_number'],
+      enum: ['answered', 'no_answer', 'busy', 'callback', 'wrong_number' , 'not_interested'],
       required: [true, 'Le résultat est requis'],
     },
     notes: {
