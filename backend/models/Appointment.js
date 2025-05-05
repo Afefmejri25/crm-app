@@ -16,7 +16,7 @@ const appointmentSchema = new mongoose.Schema(
       required: [false, "L'heure de début est requise"],
     },
     
-    },
+ 
     client: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Client",
