@@ -15,9 +15,7 @@ const appointmentSchema = new mongoose.Schema(
       type: Date,
       required: [false, "L'heure de début est requise"],
     },
-    endTime: {
-      type: Date,
-      required: [true, "L'heure de fin est requise"],
+    
     },
     client: {
       type: mongoose.Schema.Types.ObjectId,
