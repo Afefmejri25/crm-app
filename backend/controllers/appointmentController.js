@@ -35,7 +35,7 @@ export const createAppointment = async (req, res, next) => {
     // Debugging logs
     console.log("Received appointment data:", req.body);
  // Validate required fields
-    if (!title || !clientId || !agentId || !startTime) {
+    if (!title || !client || !agent || !startTime) {
       console.error("createAppointment: Missing required fields.");
       res.status(400);
       throw new Error("Title, client, agent, startTime, and endTime are required.");
@@ -43,8 +43,8 @@ export const createAppointment = async (req, res, next) => {
 
     const appointment = new Appointment({
       title,
-      client: clientId,
-      agent: agentId,
+      client: client,
+      agent: agent,
       startTime,
       
       status: status || "scheduled",
