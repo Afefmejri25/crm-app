@@ -113,7 +113,7 @@ export const updateAppointment = async (req, res, next) => {
 
 // Delete an appointment
 export const deleteAppointment = async (req, res, next) => {
-  const { id } = req.params;
+  const { id } = req.params.id;
 
   try {
     const appointment = await Appointment.findById(id);
